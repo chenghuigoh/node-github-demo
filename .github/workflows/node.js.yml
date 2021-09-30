@@ -1,0 +1,396 @@
+45
+
+19
+
+91
+
+Cover image for How to set up a CI/CD Pipeline for a node.js app with Github Actions
+How to set up a CI/CD Pipeline for a node.js app with Github Actions
+#node #github #devops #javascript
+
+Chathula Sampath
+Mar 17, 2020 ・9 min read
+Github Actions
+Github Actions is a tool/service which can be used to test, build and deploy your code by creating a CI/CD pipeline. it helps to automate your workflow like other tools/services such as Jenkins, Gitlab CI, etc. Github Actions uses YAML as the language to write the jobs/steps which need to perform on certain events. This can be used for many things such as deploy a web service, build a container app, publish packages to registries, or automate welcoming new users to your open source projects. The biggest feature in Github Actions for me is Matrix Builds(In this tutorial also I am using that for demonstrating purpose). it means you can run your workflow that simultaneously tests across multiple operating systems and versions of your runtime. (As an example you can run your workflow on Windows, Mac, and Linux with NodeJS 8.x And 10.x)
+
+What are we going to build?
+We are going to build a simple NodeJS app and host it(in this guide, I am going to use DigitalOcean instance. you can use whatever you want). This guide will show you how to config and work with Github Actions to deploy the NodeJS app to your server. Whenever you change something in code and push, Github will fire an event and will start to do the things we said. here we are going to install dependencies, run the test we wrote, if all tests are passed, Github action will deploy the app to the server. Another bonus thing that we are going to do here is run Matrix builds. it means we run our tests on multiple NodeJS versions. (you can use Multiple Operating Systems as well). it will help us to confirm our app works on (multiple Operating Systems) and multiple NodeJS versions without an issue.
+
+Create a NodeJS App
+As the first thing in this guide, we are going to create a NodeJS application locally. Here we just create a simple application that responds with the “Hello World” text. First, we will create our Github Repository. The below screenshot will show how I did it. You can change the settings as you want such as setting private/public accessibility of your repository.
+
+
+
+Now let’s clone the repository and navigate to it:
+
+git clone [git@github.com](mailto:git@github.com):<username>/node-github-demo.git
+cd node-github-demo
+Then run below commands to create package.json file and add the required dependencies and other content and then run following command to install the dependencies. Here are some descriptions of the packages that we use.
+
+npm init // fill the required things CLI asked
+npm i express
+npm i mocha supertest --save-dev
+express: Node framework
+
+mocha: Test framework for NodeJS ( You can choose another testing framework if you wish like Jasmin, Jest, Tape, etc.)
+
+supertest: Provide a high-level abstraction for testing HTTP
+
+npm install
+
+Okay, now everything is ready. let’s create a file called index.js to write the code to create an express server and show the “Hello World” text as the response of the “/” endpoint.
+    // importing express framework
+    const express = require("express");
+
+    const app = express();
+
+    // Respond with "hello world" for requests that hit our root "/"
+    app.get("/", function (req, res) {
+     return res.send("Hello World");
+    });
+
+    // listen to port 7000 by default
+    app.listen(process.env.PORT || 7000, () => {
+      console.log("Server is running");
+    });
+
+    module.exports = app;
+Now you can run the above code using the below command. Then visit http://localhost:7000 to see the “Hello World” output.
+
+node index.js
+Write Test Cases
+Now we are going to write the test case to test our “/” endpoint response equals to “Hello World”. to do that, let’s create a folder called /test/ and create a file called test.js inside that. Now let’s write the test code as bellow.
+    const request = require("supertest");
+    const app = require("../index");
+
+    describe("GET /", () => {
+      it("respond with Hello World", (done) => {
+        request(app).get("/").expect("Hello World", done);
+      })
+    });
+To run tests add below content to your package.json file.
+
+"scripts": {
+    "test": "mocha ./test/* --exit"
+}
+now just run below command to run test cases you wrote to see whether it gets passed or not.
+
+npm test
+Here is the output.
+
+
+
+Now we can push our changes to Github repository we created. Before that create .gitignore file and add files/folders you need to ignore from the git repository. here is my example **.gitignore** file I used in this guide. Now let’s push the files to Github.
+
+git add .
+git commit -m "node app with test cases"
+git push origin master
+Create Our Server (DigitalOcean)
+Okay, now we have finished writing our NodeJS app and need to create a server to deploy it to serve to the world. in this case as I said earlier I am going to use DigitalOcean droplet in this guide. Below screenshots will show you what needs to be filled when you create the Droplet in DigitalOcean and how it looks like after you create that. In this guide, I am using the existing NodeJS image droplet via the DigitalOcean M*arketplace. you can do the same thing by navigating to **Create(from top bar) -> Droplets -> Marketplace*
+
+
+
+
+
+Note: when you create droplet by selecting the Authentication option as SSH key, you need to add your local machine SSH key to Droplet. to do the that first generate it and then copy it and paste*(to paste click New SSH Key button)*. to generate and get a copy of your SSH key run the following commands.
+
+Note: here, I am using Linux. if you are on different OS, this will be a bit different. this works well on Linux and Mac.
+
+ssh-keygen -t rsa
+cat ~/.ssh/id_rsa.pub
+Deploy NodeJS App on Server
+Now we need to deploy our application in our Digitalocean server. to do that, we are going to create a new user.
+
+ssh root@SERVER.IP
+adduser <lastname>
+usermod -a -G sudo <username>
+su — username
+Run below commands to give that user login access via SSH without a password. then you can easily log in to the server by running ssh @SERVER.IP.
+
+cd
+mkdir .ssh
+chmod 700 .ssh/
+vim ~/.ssh/authorized_keys # here paste your local ssh key as we did earlier
+chmod 600 ~/.ssh/*
+Now install the git in the server. Then pull the source code and run it on the server.
+
+sudo apt-get install git
+ssh-keygen
+cat ~/.ssh/id_rsa.pub #copy the text
+Now we copied our new user ssh key. just paste it as a Github repository deploy key. then clone the repository and run it on the server.
+
+
+
+git clone [git@github.com](mailto:git@github.com):<username>/node-github-demo.git
+cd node-github-demo
+npm install --production
+sudo ufw allow 7000 # this will open port 7000 to access via web
+sudo npm install pm2 -g
+pm2 start index.js --name node-app
+
+
+Now our app is running through PM2 as node-app. just got to http://SERVER.IP:7000 to check that.
+
+The app is running!The app is running!
+
+Create a CI/CD Pipeline on Github Actions
+First Add the following secretes to use with the Github Actions workflow script. to get the SSH_KEY, just run following command on your local machine which already has the access to Digitalocean server. Then copy the content and paste the value into the SSH_KEY secret.
+
+cat ~/.ssh/id_rsa
+
+
+Now we can create our Github Actions CI/CD Pipeline. Just go to the repository and click Actions tab.
+
+
+
+Click the Node.js setup the workflow button. and it will open up a text editor. paste the following yml file content.
+
+
+name: Node Github CI
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  test:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [8.x, 10.x, 12.x]
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v1
+      with:
+        node-version: ${{ matrix.node-version }}
+    - name: npm install and test
+      run: |
+        npm install
+        npm test
+      env:
+        CI: true
+
+  deploy:
+    needs: [test]
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: SSH and deploy node app
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_KEY }}
+        port: ${{ secrets.SSH_PORT }}
+        script: |
+          cd ~/node-github-demo
+          git pull origin master
+          npm install --production
+          pm2 restart node-app
+I will explain the above YAMLcontent.
+
+Line 1: name set the workflow name.
+Line 3–6: on will check which git event we need to run the jobs. here we have set when something gets pushed to master branch, run following jobs(in this case those are test and deploy).
+Line 8–28: here in the jobs we have created a job called test. by setting runs-on we can set the runner. in this case, we have set it to ubuntu-latest. we can use Windows, Mac as well if we want. by setting astrategy we can set a build matrix. it uses to run the this test job under different node versions at this moment. under setps we can set the different tasks we need to run on specific job(in this case test job).
+    uses: actions/checkout@v2
+By setting uses we can run different actions. above case, we check out a copy of the repository. in the next line, we have set a name for this task. in the next line, we have used the following setup-node action with v1 git tag. also, we have passed an input parameter for the actions called node-version. in this case for matrix builds we have to set that version dynamically.
+    uses: actions/setup-node@v1
+    with:
+      node-version: ${{ matrix.node-version }}
+Also in the next line, we have set the name for that task as well. after that by setting run we ran multiple commands on the Operating system shell. in this case, it is, Ubuntu. by setting env we have the the CI env variable to true(we can set any other environment variables when we want).
+Line 30–46: we have created another job called deploy. in that case, also we have used same syntax as above. only new thing that we used is, needs. it uses to say if only specific job or jobs passed, then only run this job. in our case deploy job only runs when the test job gets passed.
+in this case we have used another Github action called appleboy/ssh-action@master. it needs few input parameters, we have set that. (in this case, those are SSH host, key, username, port and the script which needs to run on the server after connecting to it via SSH).
+
+Then click start commit and commit the changes. Now it will run the script. to see the changes. let’s do a change in the source code and push it into the master.
+
+
+
+
+
+Here you can see our test failed. as that it didn’t run the deployment. in the workflow yml we have set the
+    deploy:
+        needs: [test]
+as this, deployjob only runs when testjob gets passed. so we can now update the test and re-check it.
+
+
+
+Yes, now it works! it ran the deploy job as well. we can see our changes by visiting toSERVER.IP:7000
+
+
+
+
+
+Note: in this tutorial, I have used matrixbuild for Github Actions. it means it will run the test(in this case) on different NodeJS versions. we can expand this to run on different NodeJS versions in different Operating systems as well. learn more about it here
+
+References: https://medium.com/@mosheezderman/how-to-set-up-ci-cd-pipeline-for-a-node-js-app-with-jenkins-c51581cc783c
+
+https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions
+
+https://help.github.com/en/actions/language-and-framework-guides/using-nodejs-with-github-actions
+
+Special thanks go to appleboy who created the ssh-deploy Github action.
+
+If you have any questions, please let me know.
+
+Source Code
+Follow Me on Twitter
+Connect me with LinkedIn
+
+Originally posted on Medium
+
+Discussion (5)
+Subscribe
+pic
+Add to the discussion
+ 
+alphabin profile image
+Chatura Ahangama
+•
+Apr 10 '20 • Edited on Apr 10
+
+Good Post mate! Thanks :) You have saved me a bunch of time reading the Github manual. Your post was gold!!, Literally in 5 minutes I was able to have complete CI/CD
+
+
+4
+ likes
+Reply
+ 
+chathula profile image
+Chathula Sampath 
+•
+Apr 12 '20
+
+Thank you so much for your comment 😍😍
+
+
+2
+ likes
+Reply
+ 
+tlochhead profile image
+Tavis Lochhead
+•
+Oct 29 '20
+
+Hi - thanks for writing this! This got me 90% there. I'm trying to deploy a private repo and I get the following error:
+
+err: fatal: could not read Username for 'github.com': No such device or address
+
+I'm able to log into the server and all, but this error prevents git pull from working.
+
+I added my SSH key to my GitHub account, but that doesn't solve the problem.
+
+Let me know if you have a solution for this.
+
+
+2
+ likes
+Reply
+ 
+chathula profile image
+Chathula Sampath 
+•
+Nov 6 '20
+
+I think that you are using https remote urls instead of SSH urls. Check those and replace it with SSH remote urls.
+
+git remote -v
+
+
+1
+ like
+Reply
+ 
+aathith_r profile image
+AATHITH RAJENDRAN
+•
+Sep 8 • Edited on Sep 8
+
+Hey Chathula,, have you tried github actions cache for npm install?? for build time reduction.
+
+
+1
+ like
+Reply
+Code of Conduct • Report abuse
+Read next
+davidcam profile image
+Would you use NodeJS in your next project?
+David Camarena - Sep 27
+
+cglikpo profile image
+Create a Netflix clone from Scratch: JavaScript PHP + MySQL Day 63
+Christopher Glikpo - Sep 27
+
+kawsarhossain profile image
+#100daysofcode [day 12]
+Kawsar Hossain - Sep 26
+
+coderbang1 profile image
+MetaMask - Internal JSON-RPC error
+coderbang1 - Sep 26
+
+
+Chathula Sampath
+Follow
+Full Time #Developer / SSE @ Nuri(ex-Bitwala)
+LOCATION
+Colombo, Sri Lanka
+EDUCATION
+BSc in Software Engineering
+JOINED
+May 12, 2017
+More from Chathula Sampath
+What is your preferable NPM package boilerplate?
+#discuss #javascript #typescript #node
+name: Node Github CI
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  test:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [8.x, 10.x, 12.x]
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v1
+      with:
+        node-version: ${{ matrix.node-version }}
+    - name: npm install and test
+      run: |
+        npm install
+        npm test
+      env:
+        CI: true
+
+  deploy:
+    needs: [test]
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: SSH and deploy node app
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_KEY }}
+        port: ${{ secrets.SSH_PORT }}
+        script: |
+          cd ~/node-github-demo
+          git pull origin master
+          npm install --production
+          pm2 restart node-app
